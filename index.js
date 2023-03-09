@@ -1,4 +1,7 @@
-let battleMusic, winMusic, attackSound, goku, tom, tomDefeated;
+//import "p5.play"
+
+let battleMusic, winMusic, attackSound, logo;
+let goku, tom, tomDefeated; //characters
 
 function preload() {
   colors = loadJSON("media/color-palette.json");
@@ -12,13 +15,18 @@ function preload() {
 }
 
 const textSize = 50;
+const playDamageMultiplier = 1.5;
 let x, y;
-let startButton, attackButton, winPrompt, dmgDisplay;
-let hpBar1, hpBar2, hpBar1Outlin, hpBar2Outline, char1, char2, hitSprite;
+let startButton, charButton, attackButton, resumeButton;
+let winPrompt, dmgDisplay;
+let hpBar1, hpBar2, hpBar1Outline, hpBar2Outline, char1, char2, hitSprite;
 
+let hp1, hp1Cur, hp1Width, hp1WidthCur;
 let hp2, hp2Cur, hp2Width, hp2WidthCur;
 let timer, seconds;
 let gameStarted, attackAllowed; //the state of the game
+
+let playerLevel, bossLevel;
 
 // Create a new canvas to the browser size
 function setup() {
@@ -33,27 +41,29 @@ function setup() {
   attackSound.setVolume(0.2);
   winMusic.setVolume(0.3);
 
-  startButton = new Sprite(x, y);
-  startButton.textSize = textSize;
-  startButton.text = "Start";
-  startButton.w = textWidth("Start")*10;
-  startButton.h = textSize * 1.5;
-  startButton.textColor = colors.blue1;
-  startButton.shapeColor = color(0, 0, 0, 0);
-  startButton.strokeColor = colors.blue1;
-  startButton.strokeWeight = 4;
+  //Initialize the Start Game Button
+  startButton = genButton("Start Game");
+  startButton.y = y * 5/4;
 
-  attackButton = new Sprite(x, y*1.7);
-  attackButton.textSize = textSize;
-  attackButton.text = "Attack!";
-  attackButton.w = textWidth("Start")*10;
-  attackButton.h = textSize * 1.5;
-  attackButton.textColor = colors.blue1;
-  attackButton.shapeColor = color(0, 0, 0, 0);
-  attackButton.strokeColor = colors.blue1;
-  attackButton.strokeWeight = 4;
+  //Initialize the Start Game Button
+  charButton = genButton("Characters");
+  charButton.y = y * 6/4;
+
+  //Initialize the Attack Button
+  attackButton = genButton("Attack");
+  attackButton.y = y * 7/4;
+  attackButton.w = width * 1/4;
+
+  //Initialize the Resume Button
+  resumeButton = genButton("Next Level");
+
+  logo = genText("ETERNAL DUNGEON");
+  logo.y = y * 1/2;
 
   winPrompt = genText("YOU WIN!!");
+
+  levelPrompt = genText(`LEVEL: ${bossLevel}`);
+  levelPrompt.y = y * 1/8;
 
   dmgDisplay = genText("");
   dmgDisplay.x = x * 1.5;
@@ -65,6 +75,7 @@ function setup() {
   hpBar2.x = x * 1.5;
   hpBar1Outline = genHealthBar(true);
   hpBar1Outline.x = x * 0.5;
+  hp1Width = hpBar1.width;
   hpBar2Outline = genHealthBar(true);
   hpBar2Outline.x = x * 1.5;
   hp2Width = hpBar2.width;
@@ -97,14 +108,38 @@ function draw() {
   background(colors.black);
 
   if (!gameStarted) {
+    //startButton Click Behavior
     if (startButton.mouse.pressing()) {
       startButton.shapeColor = colors.grey;
     }
     if (startButton.mouse.released()) {
-        startGame();
+        inGameView();
     }
     if (mouse.released()) {
       startButton.shapeColor = color(0, 0, 0, 0);
+    }
+
+    //charButton Click Behavior
+    if (charButton.mouse.pressing()) {
+      charButton.shapeColor = colors.grey;
+    }
+    if (charButton.mouse.released()) {
+        charSelectView();
+    }
+    if (mouse.released()) {
+      charButton.shapeColor = color(0, 0, 0, 0);
+    }
+
+    if (hp2Cur <= 0) {
+      if (resumeButton.mouse.pressing()) {
+        resumeButton.shapeColor = colors.grey;
+      }
+      if (resumeButton.mouse.released()) {
+        goNext();
+      }
+      if (mouse.released()) {
+        resumeButton.shapeColor = color(0, 0, 0, 0);
+      }
     }
   }
   if (gameStarted) {
@@ -114,7 +149,7 @@ function draw() {
         attackButton.shapeColor = colors.pink4;
       }
       if (attackButton.mouse.released()) {
-        attack();
+        playerAttack();
       }
       if (mouse.released()) {
         attackButton.textColor = colors.blue1;
@@ -127,22 +162,12 @@ function draw() {
   }
 }
 
-function startGame() {
-  console.log("Game Started");
-  gameStarted = true;
-  battleMusic.loop();
-  setTimeout(() => {
-    attackAllowed = true;
-
-    //start timer
-    console.log("Start Timer.");
-    timer = setInterval(function() {
-      seconds++;
-    }, 10);
-  }, 3800)
+function inGameView() {
+  console.log("Game view");
 
   //switch visibility
-  startButton.visible = false;
+  invisibilizeAll();
+
   attackButton.visible = true;
   hpBar1.visible = true;
   hpBar2.visible = true;
@@ -151,16 +176,15 @@ function startGame() {
   char1.visible = true;
   char2.visible = true;
   char2.img = "char";
+
+  startGame();
 }
 
-function endGame() {
-  console.log("Game Ended");
-  gameStarted = false;
-}
-
-function attack() {
+function playerAttack() {
   attackSound.stop();
   attackSound.play();
+
+  attackAllowed = false;
   hitSprite.visible = true;
   dmgDisplay.visible = true;
   setTimeout(() => {
@@ -171,16 +195,42 @@ function attack() {
   }, 500);
 
   //damge calculation
-  let damage = Math.floor(random(500, 1000));
+  let damage = Math.round(damageCalculate(playerLevel, random(0, 100) <= 25) * playDamageMultiplier);
+  //damage = 100; //for test purpose
   dmgDisplay.text = `- ${damage}`;
   hp2Cur -= damage;
-  console.log(`Dealt ${damage} damage. Current hp: ${hp2Cur}.`);
+  console.log(`Player dealts ${damage} damage. Boss current hp: ${hp2Cur}.`);
 
   //hp calculation
-  hp2WidthCur = hp2Width * (hp2Cur / hp2);;
+  hp2WidthCur = hp2Width * (hp2Cur / hp2);
   hpBar2.x = 1.5 * x - (hp2Width - hp2WidthCur)/2;
   //console.log(`healthbar x position: ${hpBar2.x}.`);
   hpBar2.width = hp2WidthCur;
+
+  if (hp2Cur > 0) {
+    setTimeout(() => {
+      bossAttack();
+    }, 1500);
+  }
+}
+
+function bossAttack() {
+  attackSound.stop();
+  attackSound.play();
+
+  let damage = damageCalculate(bossLevel, random(0, 100) <= 25);
+  hp1Cur -= damage;
+  console.log(`Boss dealts ${damage} damage. Player current hp: ${hp1Cur}.`);
+
+  //hp calculation
+  hp1WidthCur = hp1Width * (hp1Cur / hp1);
+  hpBar1.x = 0.5 * x - (hp1Width - hp1WidthCur)/2;
+  //console.log(`healthbar x position: ${hpBar2.x}.`);
+  hpBar1.width = hp1WidthCur;
+
+  setTimeout(() => {
+    attackAllowed = true;
+  }, 1200);
 }
 
 function winGame() {
@@ -188,6 +238,7 @@ function winGame() {
   battleMusic.stop();
   clearInterval(timer);//stop the timer
   console.log(`Spent ${seconds/100} seconds.`)
+
   winPrompt.visible = true;
   setTimeout(() => {
     char2.img = "defeated";
@@ -195,18 +246,106 @@ function winGame() {
   setTimeout(() => {
     winMusic.play();
   }, 1000);
-  endGame();
+
+  gameStarted = false;
+  attackAllowed = false;
+
   setTimeout(() => {
-    initGame();
-  }, 25000);
+    winPrompt.visible = false;
+    resumeButton.visible = true;
+  }, 3000);
 }
 
 function initGame() {
+  console.log("init game");
   seconds = 0;
 
   //switch visibility
+  invisibilizeAll();
+  logo.visible = true;
   startButton.visible = true;
+  charButton.visible = true;
+
+  //switch game state
+  gameStarted = false;
+  attackAllowed = false
+
+  //reset game levels
+  playerLevel = 1;
+  bossLevel = 1;
+
+  //restore character health;
+  updateCharStats();
+}
+
+function startGame() {
+  console.log("Game Started");
+
+  gameStarted = true;
+  levelPrompt.text = `LEVEL: ${bossLevel}`;
+  levelPrompt.visible = true;
+  updateCharStats();
+  battleMusic.loop();
+  setTimeout(() => {
+    attackAllowed = true;
+
+    //start timer
+    console.log("Start Timer.");
+    timer = setInterval(function() {
+      seconds++;
+    }, 10);
+  }, 3800)
+}
+
+function updateCharStats() {
+  hp1 = hpCalculate(playerLevel);
+  hp1Cur = hp1; //restore full hp
+  hpBar1.width = hp1Width;
+  hp1WidthCur = hp1Width;
+  hpBar1.x = 0.5 * x;
+
+  hp2 = hpCalculate(bossLevel);
+  hp2Cur = hp2;
+  hpBar2.width = hp2Width;
+  hp2WidthCur = hp2Width;
+  hpBar2.x = 1.5 * x;
+}
+
+function charSelectView() {
+  console.log("Character Selection");
+
+  invisibilizeAll();
+
+  //switch game state
+  gameStarted = false;
+  attackAllowed = false;
+}
+
+//Behavuir after clicking resume game
+function goNext() {
+  muteAll();
+
+  playerLevel++;
+  bossLevel++;
+
+  winPrompt.visible = false;
+  resumeButton.visible = false;
+  startGame();
+}
+
+/*
+-------------------- HELPER FUNCTION --------------------
+*/
+
+//clear everything on the board
+function invisibilizeAll() {
+  startButton.visible = false;
+  charButton.visible = false;
   attackButton.visible = false;
+  resumeButton.visible = false;
+
+  logo.visible = false;
+  levelPrompt.visible = false;
   winPrompt.visible = false;
   dmgDisplay.visible = false;
 
@@ -217,18 +356,43 @@ function initGame() {
   char1.visible = false;
   char2.visible = false;
   hitSprite.visible = false;
+}
 
-  //switch game state
-  gameStarted = false;
-  attackAllowed = false
+//stop all music
+function muteAll() {
+  battleMusic.stop();
+  winMusic.stop();
+  attackSound.stop();
+}
 
-  //restore character health;
-  hp2 = 10000;
-  hp2Cur = hp2;
-  hpBar2.width = hp2Width;
-  hp2WidthCur = hp2Width;
-  hpBar2.x = 1.5 * x;
-  hpBar2.width = hp2Width;
+function hpCalculate(level) {
+  let hp = Math.floor(0.01 * (2 * 68 + 31 + floor(0.25)) * level) + level + 10;
+  console.log(`Calculated hp is ${hp}`);
+  return hp;
+}
+
+function damageCalculate(level, critical) {
+  let basicDamage = ((2 * level / 5 + 2) / 50 + 2) * Math.round(random(85, 100))/100;
+  if (critical) {
+    return Math.round(basicDamage * 1.5);
+  } else {
+    return Math.round(basicDamage);
+  }
+}
+
+//create Sprite for buttons
+function genButton(text) {
+  let button = new Sprite();
+  button.textSize = textSize;
+  button.text = text;
+  button.w = textWidth("Characters")*10;
+  button.h = textSize * 1.5;
+  button.textColor = colors.blue1;
+  button.shapeColor = color(0, 0, 0, 0);
+  button.strokeColor = colors.blue1;
+  button.strokeWeight = 4;
+  //button.collider = "none"
+  return button;
 }
 
 //create Sprite object for health bars
@@ -242,7 +406,7 @@ function genHealthBar(outline) {
     hp.strokeColor = color(0, 0, 0, 0);
   }
   hp.strokeWeight = 6;
-  hp.y = y * 0.2;
+  hp.y = y * 1/4;
   hp.h = 20;
   hp.width = x / 2;
   hp.collider = "none";
