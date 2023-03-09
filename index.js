@@ -1,5 +1,14 @@
 //import "p5.play"
 
+class Character {
+  constructor(name, image) {
+    this.name = name;
+    this.image = image;
+  }
+}
+
+const characters = [];
+
 let battleMusic, winMusic, attackSound, logo;
 let goku, tom, tomDefeated; //characters
 
@@ -8,9 +17,9 @@ function preload() {
   battleMusic = loadSound("media/battle.mp3");
   winMusic = loadSound("media/win.mp3");
   attackSound = loadSound("media/attack.mp3");
-  goku = loadImage("media/goku.png");
-  tom = loadImage("media/tom-normal.png");
-  tomDefeated = loadImage("media/tom-defeated.png");
+  gokuImg = loadImage("media/goku.png");
+  tomImg = loadImage("media/tom-normal.png");
+  tomDefeatedImg = loadImage("media/tom-defeated.png");
   hit = loadImage("media/hit.png");
 }
 
@@ -18,15 +27,19 @@ const textSize = 50;
 const playDamageMultiplier = 1.5;
 let x, y;
 let startButton, charButton, attackButton, resumeButton;
-let winPrompt, dmgDisplay;
+let winPrompt, dmgDisplay, selectTitle;
 let hpBar1, hpBar2, hpBar1Outline, hpBar2Outline, char1, char2, hitSprite;
 
 let hp1, hp1Cur, hp1Width, hp1WidthCur;
 let hp2, hp2Cur, hp2Width, hp2WidthCur;
 let timer, seconds;
-let gameStarted, attackAllowed; //the state of the game
+let gameStarted, attackAllowed, isSelectView; //the state of the game
 
 let playerLevel, bossLevel;
+
+let input, inputButton;
+
+let charGroup;
 
 // Create a new canvas to the browser size
 function setup() {
@@ -62,6 +75,9 @@ function setup() {
 
   winPrompt = genText("YOU WIN!!");
 
+  selectTitle = genText("PLAYER SELECT");
+  selectTitle.y = y * 1/4;
+
   levelPrompt = genText(`LEVEL: ${bossLevel}`);
   levelPrompt.y = y * 1/8;
 
@@ -80,16 +96,31 @@ function setup() {
   hpBar2Outline.x = x * 1.5;
   hp2Width = hpBar2.width;
 
-  goku.resize(width/3.5, 0);
-  char1 = genCharacter(goku);
+  gokuImg.resize(width/3.5, 0);
+  char1 = genCharacter(gokuImg);
   char1.x = x * 0.5;
-  tom.resize(width/3.5, 0);
-  char2 = genCharacter(tom);
+  tomImg.resize(width/3.5, 0);
+  char2 = genCharacter(tomImg);
   char2.x = x * 1.5;
-  char2.addImage("defeated", tomDefeated);
+  char2.addImage("defeated", tomDefeatedImg);
   hit.resize(width/3.5, 0);
   hitSprite = genCharacter(hit);
   hitSprite.x = x * 1.5;
+
+  let goku = new Character("goku", gokuImg);
+  let tom = new Character("tom", tomImg);
+  characters.push(goku);
+  characters.push(tom);
+
+  charGroup = new Group();
+  charGroup.x = (i) => (i+1) * width/4;
+	charGroup.y = y * 3/4;
+  charGroup.height = height/8;
+  charGroup.width = height/8;
+  charGroup.amount = characters.length;
+  charGroup.text = (i) => characters[i].name;
+  charGroup.strokeWeight = 6
+  charGroup.strokeColor = color(0, 0, 0, 0);
 
   initGame();
 }
@@ -106,28 +137,36 @@ function windowResized() {
 
 function draw() {
   background(colors.black);
-
   if (!gameStarted) {
     //startButton Click Behavior
-    if (startButton.mouse.pressing()) {
-      startButton.shapeColor = colors.grey;
-    }
-    if (startButton.mouse.released()) {
-        inGameView();
-    }
-    if (mouse.released()) {
-      startButton.shapeColor = color(0, 0, 0, 0);
-    }
-
-    //charButton Click Behavior
-    if (charButton.mouse.pressing()) {
-      charButton.shapeColor = colors.grey;
-    }
-    if (charButton.mouse.released()) {
-        charSelectView();
-    }
-    if (mouse.released()) {
-      charButton.shapeColor = color(0, 0, 0, 0);
+    if (!isSelectView) {
+      if (startButton.mouse.pressing()) {
+        startButton.shapeColor = colors.grey;
+      }
+      if (startButton.mouse.released()) {
+          toggleGameView();
+      }
+      if (mouse.released()) {
+        startButton.shapeColor = color(0, 0, 0, 0);
+      }
+      //charButton Click Behavior
+      if (charButton.mouse.pressing()) {
+        charButton.shapeColor = colors.grey;
+      }
+      if (charButton.mouse.released()) {
+        toggleSelectView();
+      }
+      if (mouse.released()) {
+        charButton.shapeColor = color(0, 0, 0, 0);
+      }
+    } else {
+      for (let i = 0; i < charGroup.length; i++) {
+        if (charGroup[i].mouse.released()) {
+          console.log("im here for clicking");
+          char1.img = characters[i].image;
+          toggleGameView();
+        }
+      }
     }
 
     if (hp2Cur <= 0) {
@@ -162,20 +201,8 @@ function draw() {
   }
 }
 
-function inGameView() {
+function toggleGameView() {
   console.log("Game view");
-
-  //switch visibility
-  invisibilizeAll();
-
-  attackButton.visible = true;
-  hpBar1.visible = true;
-  hpBar2.visible = true;
-  hpBar1Outline.visible = true;
-  hpBar2Outline.visible = true;
-  char1.visible = true;
-  char2.visible = true;
-  char2.img = "char";
 
   startGame();
 }
@@ -196,7 +223,7 @@ function playerAttack() {
 
   //damge calculation
   let damage = Math.round(damageCalculate(playerLevel, random(0, 100) <= 25) * playDamageMultiplier);
-  //damage = 100; //for test purpose
+  damage = 100; //for test purpose
   dmgDisplay.text = `- ${damage}`;
   hp2Cur -= damage;
   console.log(`Player dealts ${damage} damage. Boss current hp: ${hp2Cur}.`);
@@ -269,6 +296,7 @@ function initGame() {
   //switch game state
   gameStarted = false;
   attackAllowed = false
+  isSelectView = false;
 
   //reset game levels
   playerLevel = 1;
@@ -282,8 +310,22 @@ function startGame() {
   console.log("Game Started");
 
   gameStarted = true;
+  isSelectView = false;
+
+  //switch visibility
+  invisibilizeAll();
+
+  attackButton.visible = true;
+  hpBar1.visible = true;
+  hpBar2.visible = true;
+  hpBar1Outline.visible = true;
+  hpBar2Outline.visible = true;
+  char1.visible = true;
+  char2.visible = true;
+  char2.img = "char";
   levelPrompt.text = `LEVEL: ${bossLevel}`;
   levelPrompt.visible = true;
+
   updateCharStats();
   battleMusic.loop();
   setTimeout(() => {
@@ -311,14 +353,17 @@ function updateCharStats() {
   hpBar2.x = 1.5 * x;
 }
 
-function charSelectView() {
+function toggleSelectView() {
   console.log("Character Selection");
 
   invisibilizeAll();
+  selectTitle.visible = true;
+  charGroup.visible = true;
 
   //switch game state
   gameStarted = false;
   attackAllowed = false;
+  isSelectView = true;
 }
 
 //Behavuir after clicking resume game
@@ -328,8 +373,6 @@ function goNext() {
   playerLevel++;
   bossLevel++;
 
-  winPrompt.visible = false;
-  resumeButton.visible = false;
   startGame();
 }
 
@@ -343,11 +386,13 @@ function invisibilizeAll() {
   charButton.visible = false;
   attackButton.visible = false;
   resumeButton.visible = false;
+  charGroup.visible = false;
 
   logo.visible = false;
   levelPrompt.visible = false;
   winPrompt.visible = false;
   dmgDisplay.visible = false;
+  selectTitle.visible = false;
 
   hpBar1.visible = false;
   hpBar2.visible = false;
