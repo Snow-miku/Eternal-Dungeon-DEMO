@@ -223,7 +223,7 @@ function playerAttack() {
 
   //damge calculation
   let damage = Math.round(damageCalculate(playerLevel, random(0, 100) <= 25) * playDamageMultiplier);
-  damage = 100; //for test purpose
+  //damage = 100; //for test purpose
   dmgDisplay.text = `- ${damage}`;
   hp2Cur -= damage;
   console.log(`Player dealts ${damage} damage. Boss current hp: ${hp2Cur}.`);
